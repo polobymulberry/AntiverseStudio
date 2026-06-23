@@ -22,7 +22,7 @@ _SLEEP = 0.25
 
 
 def _repo_root() -> Path:
-    env = (os.environ.get("FIGSHION3D_REPO_ROOT") or "").strip()
+    env = (os.environ.get("ANTIVERSESTUDIO_REPO_ROOT") or "").strip()
     if env:
         return Path(env).resolve()
     return Path(__file__).resolve().parents[1]

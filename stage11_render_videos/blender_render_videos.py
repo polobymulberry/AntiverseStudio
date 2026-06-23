@@ -95,6 +95,11 @@ _HAIR_OBJECT_NAME_RE = re.compile(r"^hair(\.\d+)?$", re.IGNORECASE)
 _COMPOSITE_GLB_SUFFIX = "_composite.glb"
 _JSON_ENVS = ("STAGE11_JSON", "STAGE9_JSON")
 
+# body GLB 导入标记：新键 antiverse_body_glb；兼容旧工程 figshion_body_glb（读取时双键识别，写入时迁移到新键）
+_BODY_GLB_MARK_KEY = "antiverse_body_glb"
+_LEGACY_BODY_GLB_MARK_KEY = "figshion_body_glb"
+_BODY_GLB_MARK_KEYS = (_BODY_GLB_MARK_KEY, _LEGACY_BODY_GLB_MARK_KEY)
+
 SUBDIR_COVERS = "stage9_render_covers"
 SUBDIR_VIDEOS = "stage11_render_videos"
 SUBDIR_SELECTED = "stage10_render_covers_selected"
@@ -610,12 +615,38 @@ def _delete_object_tree(obj: bpy.types.Object) -> None:
     bpy.ops.object.delete()
 
 
+def _obj_has_body_glb_mark(obj: bpy.types.Object) -> bool:
+    """判断物体是否带 stage8 body GLB 导入标记（含旧键 figshion_body_glb）。"""
+    return any(obj.get(key) for key in _BODY_GLB_MARK_KEYS)
+
+
+def _set_body_glb_mark(obj: bpy.types.Object) -> None:
+    """写入新标记并清除旧键，避免场景中同时存在两套自定义属性。"""
+    obj[_BODY_GLB_MARK_KEY] = 1
+    if _LEGACY_BODY_GLB_MARK_KEY in obj:
+        del obj[_LEGACY_BODY_GLB_MARK_KEY]
+
+
+def _find_body_glb_import_roots() -> list[bpy.types.Object]:
+    """查找带 body GLB 标记的导入根物体（新/旧标记均识别，去重保序）。"""
+    roots: list[bpy.types.Object] = []
+    seen: set[int] = set()
+    for key in _BODY_GLB_MARK_KEYS:
+        for obj in _find_marked_import_roots(key):
+            oid = id(obj)
+            if oid in seen:
+                continue
+            seen.add(oid)
+            roots.append(obj)
+    return roots
+
+
 def remove_blend_preset_body() -> bool:
     """删除工程 ``blender_render_videos.blend`` 预置的 ``body`` 物体（若存在）。"""
     obj = bpy.data.objects.get("body")
     if obj is None:
         return False
-    if obj.get("figshion_body_glb"):
+    if _obj_has_body_glb_mark(obj):
         return False
     name = obj.name
     _delete_object_tree(obj)
@@ -657,7 +688,7 @@ def cleanup_body() -> None:
 
 def _purge_body_glb_marked() -> None:
     for obj in list(bpy.data.objects):
-        if obj.get("figshion_body_glb"):
+        if _obj_has_body_glb_mark(obj):
             bpy.data.objects.remove(obj, do_unlink=True)
 
 
@@ -675,7 +706,7 @@ def import_body_from_stage8_glb(glb_path: Path) -> list[bpy.types.Object]:
         print(f"[ERROR] stage8 GLB 未导入任何物体: {glb_path}", file=sys.stderr)
         return []
     for o in imported_objs:
-        o["figshion_body_glb"] = 1
+        _set_body_glb_mark(o)
     imported_set = set(imported_objs)
     import_roots = [o for o in imported_objs if o.parent is None or o.parent not in imported_set]
     for root in import_roots:
@@ -769,7 +800,7 @@ def _canonicalize_body_object_name(imported_objs: list[bpy.types.Object]) -> Non
         if _BODY_OBJECT_NAME_RE.match(o.name):
             _ensure_unique_object_name(o, "body")
             return
-    roots = _find_marked_import_roots("figshion_body_glb")
+    roots = _find_body_glb_import_roots()
     if not roots:
         roots = [o for o in imported_objs if o.parent is None or o.parent not in imported_set]
     if roots:
@@ -1136,7 +1167,7 @@ _HAIR_PRINCIPLED_ROUGHNESS = 0.7
 def _new_hair_principled_material(obj_name: str, rgb: tuple[float, float, float]) -> bpy.types.Material:
     """新建仅含 ``Material Output`` + ``Principled BSDF`` 的材质（不复用 OBJ/工程内旧节点树）。"""
     safe = (obj_name or "Hair").replace(".", "_")[:60]
-    mat = bpy.data.materials.new(name=f"FigShionHair_{safe}")
+    mat = bpy.data.materials.new(name=f"AntiverseHair_{safe}")
     mat.use_nodes = True
     nt = mat.node_tree
     if nt is None:

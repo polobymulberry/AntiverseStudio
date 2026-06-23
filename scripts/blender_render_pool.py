@@ -9,7 +9,7 @@
 
 - ``BLENDER_POOL_MAX``: 最大并发数，默认 7。
 - ``BLENDER_POOL_NAME``: 池子名，用于隔离不同 sqlite（默认 ``default``）。
-- ``FIGSHION3D_REPO_ROOT``: 仓库根；未设置时从本脚本位置推断。
+- ``ANTIVERSESTUDIO_REPO_ROOT``: 仓库根；未设置时从本脚本位置推断。
 - ``BLENDER_POOL_EST_SECONDS_COVERS`` / ``BLENDER_POOL_EST_SECONDS_VIDEOS`` /
   ``BLENDER_POOL_EST_SECONDS_WHITE_MESH`` / ``BLENDER_POOL_EST_SECONDS_DEFAULT``:
   无历史统计时用于 ETA 的默认秒数。
@@ -132,7 +132,7 @@ def _cleanup_holder_lease(
 
 
 def _repo_root() -> Path:
-    env = (os.environ.get("FIGSHION3D_REPO_ROOT") or "").strip()
+    env = (os.environ.get("ANTIVERSESTUDIO_REPO_ROOT") or "").strip()
     if env:
         return Path(env).resolve()
     return Path(__file__).resolve().parents[1]

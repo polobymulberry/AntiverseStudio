@@ -8,7 +8,7 @@
 - Stage6 调用带 ``--resume``，便于断点续跑单条内多图。
 - **并发（默认 ``--workers=4``）**：多主题并行；**每个主题**在单个 worker 内**顺序**跑完 Stage4→5→6，且子进程全部成功后**再**用与「已齐」相同的规则校验磁盘（各模板 CSV + Stage6 预览张数）；**仅当该校验通过**（或本主题被判定为跳过已齐）后，该 worker 才领取下一主题。
 
-用法（仓库根、已 ``conda activate figshion3d``）::
+用法（仓库根、已 ``conda activate antiversestudio``）::
 
     python scripts/batch_doll_texture_stages.py --pipeline 卡通人偶定制
 

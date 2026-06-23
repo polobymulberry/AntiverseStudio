@@ -48,7 +48,7 @@ python stage3b_body_and_hair_template_theme_fit/analyze_body_hair_theme_fit.py -
 
 # Stage6 输出：`output/卡通人偶定制/stage4_10/<fashion-tag>/<body_template>/stage6_new_texture_generation/*.png`。
 
-# 在**仓库根**执行（需已 `conda activate figshion3d`）：
+# 在**仓库根**执行（需已 `conda activate antiversestudio`）：
 
 ```bash
 python scripts/batch_doll_texture_stages.py --mode body --pipeline 卡通人偶定制

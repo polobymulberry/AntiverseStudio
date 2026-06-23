@@ -1,4 +1,4 @@
-# FigShion3D Pipeline (Python 3.12 + Blender 4.2 LTS)
+# AntiverseStudio Pipeline (Python 3.12 + Blender 4.2 LTS)
 
 本仓库按 **Stage1～Stage12**（及若干手工/分支子步骤）组织 3D 卡通服装纹理生成流水线，目录拆分遵循：
 
@@ -15,15 +15,15 @@
 安装 Python 依赖（conda 环境 + pip 安装 `requirements.txt`，与项目约定一致）：
 
 ```bash
-conda create -n figshion3d python=3.12 -y
-conda activate figshion3d
-cd /path/to/FigShion3D
+conda create -n antiversestudio python=3.12 -y
+conda activate antiversestudio
+cd /path/to/AntiverseStudio
 pip install -r requirements.txt
 cp .env.example .env
 ```
 
 可选：若你习惯用 `conda-forge`，可将第一行改为  
-`conda create -n figshion3d python=3.12 -c conda-forge -y`。
+`conda create -n antiversestudio python=3.12 -c conda-forge -y`。
 
 ### 在 Blender 自带 Python 中安装 `python-dotenv`
 
@@ -142,11 +142,11 @@ blender -b --python-use-system-env resource/blender/body_template_preview.blend 
   -P stage1_body_template_preview/blender_template_preview.py -- --check-prerequisite
 ```
 
-可选：若大量模板的 `high_poly/body.obj` 在 Wavefront 里使用了非 `body` 的 `o` 物体名、或存在多个 `o` 导致 Blender 里根物体不叫 `body`，在 **`conda activate figshion3d`** 下运行修复脚本（与 `.cursorrules` 一致；通过 `common.settings` 读取 `.env` / `BODY_TEMPLATE_ROOT`，依赖环境中的 `python-dotenv`）。脚本会把**首条** `o` 改为 `o body`，并**删除后续多余的 `o` 行**（将面合并进同一物体）；同时**删除所有 `g ...` 组行**（如 `g ZBrushPolyMesh3D`）。写回前默认生成 `body.obj.bak`：
+可选：若大量模板的 `high_poly/body.obj` 在 Wavefront 里使用了非 `body` 的 `o` 物体名、或存在多个 `o` 导致 Blender 里根物体不叫 `body`，在 **`conda activate antiversestudio`** 下运行修复脚本（与 `.cursorrules` 一致；通过 `common.settings` 读取 `.env` / `BODY_TEMPLATE_ROOT`，依赖环境中的 `python-dotenv`）。脚本会把**首条** `o` 改为 `o body`，并**删除后续多余的 `o` 行**（将面合并进同一物体）；同时**删除所有 `g ...` 组行**（如 `g ZBrushPolyMesh3D`）。写回前默认生成 `body.obj.bak`：
 
 ```bash
-conda activate figshion3d
-cd /path/to/FigShion3D
+conda activate antiversestudio
+cd /path/to/AntiverseStudio
 python stage1_body_template_preview/fix_obj_object_name_to_body.py --dry-run   # 先看改动说明
 python stage1_body_template_preview/fix_obj_object_name_to_body.py             # 实际写回
 ```
@@ -166,7 +166,7 @@ python stage2_body_template_description/generate_descriptions.py
 根据 Stage1 **body template 预览图**推断题材：**未指定 `--candidate-count` 时**，无 `--theme-hint` 则默认每模板 **10 条**；若提供 **`--theme-hint`** 则默认 **1 条**（单条「定名式」产品线主题，如品牌化口语；仍须写成可延展母题）。显式 `--candidate-count N` 可覆盖。每条 **`user_requirement_zh` 可直接粘贴进 `pipeline_render_prefs.yml` 的 `user_requirement`**；另输出 **`video_title_zh`（7～9 字）**作小红书成片标题/文件名参考；并附 `fit_score` / `fit_label` / `category` 便于筛选；强调轮次间**明显换一批**（变化种子 + 默认较高 `temperature`）。输出须 **`--run-subdir <NAME>`**（或 `--output-csv`）。**`--auto-gen-yml`**：从该 run 的 CSV 筛选「很合适」行，写入 **`output/手办服装IP/stage4_10/`**（默认产品线，可 `--pipeline-line` 改）。**不参与** Stage4 必填链路；**默认开启联网**。
 
 ```bash
-conda activate figshion3d
+conda activate antiversestudio
 python stage3a_body_template_theme_fit/analyze_theme_fit.py --run-subdir 选题_国潮与科幻_260106
 # 换一批灵感：换子目录名 + 可选发散提示
 python stage3a_body_template_theme_fit/analyze_theme_fit.py --run-subdir 选题_复古游戏_260107 --theme-hint "偏16bit像素与街机海报"

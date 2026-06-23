@@ -9,7 +9,7 @@
 - 输入：`BODY_TEMPLATE_ROOT/*/high_poly/body.obj`
 - 输出：`output/stage1_body_template_preview/<template>.png`
 - 可选前提检查（不输出图）：`blender -b --python-use-system-env ... -P ... -- --check-prerequisite`（见 README：Blender 自带 Python 需安装 `python-dotenv`），逐个模板导入后要求 `bpy.data.objects["body"]` 存在，否则记为失败并以退出码 1 结束（便于 CI / 批量排查命名）。
-- 可选 OBJ 文本修复（`conda activate figshion3d` 后）：`python stage1_body_template_preview/fix_obj_object_name_to_body.py`，经 `common.settings` 读取模板根与 `.env`；将各模板 `high_poly/body.obj` 中 Wavefront `o` 规范为单一 `o body`（多 `o` 时删除多余行以合并），**并删除所有 `g` 组行**；打印改动痕迹；默认写回前备份 `body.obj.bak`。
+- 可选 OBJ 文本修复（`conda activate antiversestudio` 后）：`python stage1_body_template_preview/fix_obj_object_name_to_body.py`，经 `common.settings` 读取模板根与 `.env`；将各模板 `high_poly/body.obj` 中 Wavefront `o` 规范为单一 `o body`（多 `o` 时删除多余行以合并），**并删除所有 `g` 组行**；打印改动痕迹；默认写回前备份 `body.obj.bak`。
 
 ## Stage2 -> Stage4
 

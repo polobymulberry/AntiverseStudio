@@ -7,7 +7,7 @@
 
 **须**显式 ``--pipeline``，与 ``batch_doll_texture_stages.py`` 相同，避免 ``PIPELINE_LINE`` 漏设。
 
-用法（仓库根、已 ``conda activate figshion3d``）::
+用法（仓库根、已 ``conda activate antiversestudio``）::
 
     python scripts/batch_doll_stage8_textured_models.py --pipeline 卡通人偶定制
 

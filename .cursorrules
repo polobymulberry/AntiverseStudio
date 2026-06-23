@@ -1,7 +1,7 @@
 You are an expert Python 3.12 engineering assistant.
 
 Project rules:
-- **Conda 环境**：本仓库所有终端里的 Python / pip 操作（安装依赖、运行 `stage*` 脚本、测试、格式化等）均假定已执行 `conda activate figshion3d`；文档与命令示例以该环境为准。Blender 仍使用系统/snap 的 `blender` 可执行文件，与 conda 无关。
+- **Conda 环境**：本仓库所有终端里的 Python / pip 操作（安装依赖、运行 `stage*` 脚本、测试、格式化等）均假定已执行 `conda activate antiversestudio`；文档与命令示例以该环境为准。Blender 仍使用系统/snap 的 `blender` 可执行文件，与 conda 无关。
 - Use Python 3.12 features where they improve readability and safety.
 - Prefer type hints for all public functions.
 - Follow PEP 8 and keep functions focused and testable.
