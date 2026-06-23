@@ -82,7 +82,7 @@ stage3_body_template_decimate/
 stage4_fashion_prompt/
 stage5_new_texture_prompt/
 stage6_new_texture_generation/
-stage7_new_texture_generation_selected/   # 筛图目录名（实际路径见 Stage7：在每 run 的 output/stage4_10/…/ 下）
+stage7_new_texture_generation_selected/   # 筛图目录名（实际路径见 Stage7：在每 run 的 output/<PIPELINE_LINE>/stage4_10/…/ 下）
 stage8_new_texture_model_generation/
 stage9_render_covers/                    # 说明：同 README Stage9
 stage10_render_covers_selected/         # 手工从 Stage9 封面中挑选
@@ -97,12 +97,24 @@ resource/blender/   # 含 blender_render_videos.blend、render_around_white_mesh
 所有配置集中在 `.env` + `common/settings.py`：
 
 - 模板根目录：`BODY_TEMPLATE_ROOT`（默认 `/mnt/jfs_tikv/panjianxiong/drdoll/data/solid_full_body`）
+- 流水线产品线子目录：`PIPELINE_LINE`（默认 **手办服装IP**，产物在 `output/手办服装IP/stage4_10/…`；新作 **卡通人偶定制** 请设 `PIPELINE_LINE=卡通人偶定制`）
 - Qwen：`DASHSCOPE_API_KEY` / `DASHSCOPE_MODEL=qwen3.6-plus`
 - Seedream：`SEEDREAM_API_KEY` / `SEEDREAM_MODEL=doubao-seedream-5-0-260128`
 - OSS：`OSS_*`
 - 腾讯混元 3D：`TENCENTCLOUD_SECRET_ID` / `TENCENTCLOUD_SECRET_KEY`
 
 > 安全建议：不要把真实密钥提交到 Git。
+
+### 卡通人偶定制（可选产品线）
+
+设置 **`PIPELINE_LINE=卡通人偶定制`**（可与 `手办服装IP` 并存于不同输出目录）。主题 YAML 以 **`user_requirement`** 为服装纹理锚点（与手办线一致）；旧文件仅有 `body_requirement` 时 Stage4 仍会回退读取。另写 **`hair_object`**（solid 发型子目录名）与 **`hair_color`**（`common.hair_assets.HAIR_COLORS` 英文键），由 **Stage3b** 或人工维护；渲染阶段导入 **`resource/blender/solid_hair/<hair_object>/low_poly/hair.obj`** 并按 `hair_color` 染色，**不再**维护头发新纹理脚本目录。典型脚本：
+
+- **发型预览 PNG（仅发型几何）**：`blender -b --python-use-system-env resource/blender/body_template_preview.blend -P stage1_hair_style_preview/render_hair_style_previews.py --`，输出 `resource/blender/solid_hair_preview/hair_style/<发型>.png`。
+- **Stage3b 选题**：`python stage3b_body_and_hair_template_theme_fit/analyze_body_hair_theme_fit.py --run-subdir <NAME>`（默认每人脸 **`--themes-per-face` 5** 行互斥选题；**`--style-branches-per-theme`** 控制单条 `user_requirement_zh` 内同母题下的短分句数，默认 **1**，与行数解耦；弃用 `--candidate-count` 仍等同 `--themes-per-face`），人脸照放入 `resource/real_head_120k_selected/`；CSV 在 **`output/stage3b_body_and_hair_template_theme_fit/<NAME>/`**。已有 CSV 时须 **`--resume`** 续跑或 **`--overwrite`** 删目录重跑；**`--auto-gen-yml`** 从 CSV 中 `fit_label=很合适` 生成 `output/卡通人偶定制/stage4_10/.../pipeline_render_prefs.yml`（默认 **`prompt_count=1`** / 每主题一条身体扩展，可用 **`--pref-prompt-count`** 改；详见 [`docs/script_template.md`](docs/script_template.md)）。
+- **身体新纹理批量**：`python scripts/batch_doll_texture_stages.py --pipeline 卡通人偶定制`（可选 `--fashion-tag`、`--overwrite`、`--stage4-disable-search` 等）。
+- **合成白模视频**：`stage12b_body_head_hair_render_white_mesh_videos/blender_render_composite_white_mesh.py`（工程 `render_around_white_mesh.blend`）。
+
+详见 [`docs/stage_data_contract.md`](docs/stage_data_contract.md) 中 Stage3b、Stage4b～8b、Stage12b。
 
 ## 4. 各阶段运行
 
@@ -149,6 +161,21 @@ python stage1_body_template_preview/fix_obj_object_name_to_body.py             #
 python stage2_body_template_description/generate_descriptions.py
 ```
 
+### Stage3a 模板题材适配分析（可选，Qwen 多模态）
+
+根据 Stage1 **body template 预览图**推断题材：**未指定 `--candidate-count` 时**，无 `--theme-hint` 则默认每模板 **10 条**；若提供 **`--theme-hint`** 则默认 **1 条**（单条「定名式」产品线主题，如品牌化口语；仍须写成可延展母题）。显式 `--candidate-count N` 可覆盖。每条 **`user_requirement_zh` 可直接粘贴进 `pipeline_render_prefs.yml` 的 `user_requirement`**；另输出 **`video_title_zh`（7～9 字）**作小红书成片标题/文件名参考；并附 `fit_score` / `fit_label` / `category` 便于筛选；强调轮次间**明显换一批**（变化种子 + 默认较高 `temperature`）。输出须 **`--run-subdir <NAME>`**（或 `--output-csv`）。**`--auto-gen-yml`**：从该 run 的 CSV 筛选「很合适」行，写入 **`output/手办服装IP/stage4_10/`**（默认产品线，可 `--pipeline-line` 改）。**不参与** Stage4 必填链路；**默认开启联网**。
+
+```bash
+conda activate figshion3d
+python stage3a_body_template_theme_fit/analyze_theme_fit.py --run-subdir 选题_国潮与科幻_260106
+# 换一批灵感：换子目录名 + 可选发散提示
+python stage3a_body_template_theme_fit/analyze_theme_fit.py --run-subdir 选题_复古游戏_260107 --theme-hint "偏16bit像素与街机海报"
+# 断点续跑（指向同一 CSV）：
+python stage3a_body_template_theme_fit/analyze_theme_fit.py --resume --run-subdir 选题_国潮与科幻_260106
+# 从 CSV 生成手办线主题根 YAML（不调用模型；默认 output/手办服装IP/stage4_10/）：
+python stage3a_body_template_theme_fit/analyze_theme_fit.py --run-subdir 选题_国潮与科幻_260106 --auto-gen-yml
+```
+
 ### Stage3 模型减面 + 上传 OSS
 
 输出：
@@ -169,59 +196,56 @@ blender -b --python-use-system-env -P stage3_body_template_decimate/blender_deci
 
 **必须**在 `-P …/blender_decimate_and_upload.py` 之后写 **` -- `**（空格、双减号、空格），再写 `--resume`。若写成 `-P …py --resume` 而漏掉 ` -- `，脚本可能跑完，但 Blender 结束后会把 `--resume` 当成要打开的 `.blend` 路径，出现 `unknown argument, loading as file: --resume`。
 
-### Stage4 纹理 / 主题图案 Prompt 生成（单模板，每次 20 条）
+### Stage4 纹理 / 主题图案 Prompt 生成
 
-须用 **`--template`** 指定一个服装模板名（与 `BODY_TEMPLATE_ROOT` 下子目录名、以及 `output/stage2_body_template_description.csv` 里的 `template_name` 一致）。**仅**为该模板调用大模型生成 **20** 条 prompt（条数见 `stage4_fashion_prompt/generate_fashion_prompts.py` 中 `PROMPT_COUNT`）；若名称不在阶段2 CSV 已有记录中，脚本会打印 `[ERROR]`、列出已有 `template_name` 并以非零退出码结束，请改正后重跑。
+**必填 `--fashion-tag`**。参与生成的服装模板列表、各模板条数写在 **`output/<PIPELINE_LINE>/stage4_10/<truncate(fashion_tag)>/pipeline_render_prefs.yml`** 的 **`body_templates`**（及可选顶层 **`prompt_count`**），不再在代码里写死条数。可选 **`--template body_xxx`** 仅处理其中一套模板。
 
-输出路径（每个模板 × 每个需求一份 CSV；固定子目录 **`stage4_10`**，见 `common.utils.PIPELINE_TEMPLATE_USER_SUBDIR`；需求目录名由 `truncate_for_path` 截断）：
+同一主题根目录下的 **`pipeline_render_prefs.yml`** 在 Stage4 **启动时**即同步（无则建）；Stage9/11 在传入相同 **`--fashion-tag`** 时对该文件同步（随机 Tint、默认头/发等；CLI 优先写回）。
 
-`output/stage4_10/<template_name>/<需求截断>/stage4_fashion_prompt.csv`
+单套模板产物路径：
 
-同目录下 **`pipeline_render_prefs.yml`** 在 Stage4 **启动时**即同步：无则建、有则按规则合并（随机 Tint、默认头/发，可手改）。Stage9/11 在相同 **`--template`** / **`--user-requirement`** 下**启动时**也会再次同步该文件；命令行传入的 Tint/头/发会**覆盖并写回** YAML（命令行优先）。
+`output/<PIPELINE_LINE>/stage4_10/<fashion_tag截断>/<template_name>/stage4_fashion_prompt.csv`
 
 ```bash
 python stage4_fashion_prompt/generate_fashion_prompts.py \
-  --template "body_24_overall_set" \
-  --user-requirement "2026年服装纹理趋势"
+  --fashion-tag "你的主题标签"
 ```
 
 ### Stage5 组合最终图像生成 Prompt
 
-输出：`output/stage4_10/<template_name>/<需求截断>/stage5_new_texture_prompt.csv`（与阶段4 同目录，读同目录下的 `stage4_fashion_prompt.csv`）
+输出：`output/<PIPELINE_LINE>/stage4_10/<fashion_tag截断>/<template_name>/stage5_new_texture_prompt.csv`（读同目录下的 `stage4_fashion_prompt.csv`）
 
-阶段5 也要传 **`--user-requirement`**，是因为子目录名由 `common.utils.truncate_for_path(需求全文)` 生成，脚本必须用与**阶段4 完全相同**的那句需求字符串才能拼出同一路径；同一模板下往往会有**多个**需求子目录，仅凭 `--template` 无法唯一对应到某一个 `stage4_fashion_prompt.csv`。
+**必填 `--fashion-tag`**（与阶段4 同一套路径约定）。若省略 **`--template`**，则按主题根 **`pipeline_render_prefs.yml`** 的 **`body_templates`** 顺序逐套生成；也可 **`--template`** 只跑其中一套。
 
 ```bash
 python stage5_new_texture_prompt/build_texture_prompts.py \
-  --template "body_24_overall_set" \
-  --user-requirement "2026年服装纹理趋势"
+  --fashion-tag "你的主题标签"
 ```
 
 ### Stage6 Seedream 出图（每条默认 4 张）
 
-对每条 CSV 的 `full_prompt` **不做前缀拼接**；对 Seedream **连续请求 N 次**，每次 **`n=1`**，累计保存 N 张图（默认 `N=4`，可用 `--num-images` 修改）。当前为 **20 条 prompt × 4 张 = 80 张候选**；后续人工在阶段7 **每组 4 张留 1 张**得 20 张，再收窄为 **10 张**进贴图与后续渲染。
+对每条 CSV 的 `full_prompt` **不做前缀拼接**；对 Seedream **连续请求 N 次**，每次 **`n=1`**，累计保存 N 张图（默认 `N=4`，可用 `--num-images` 修改）。
 
-输出：`output/stage4_10/<模板名>/<需求截断>/stage6_new_texture_generation/<中文风格>_1~N.png`
+输出：`output/<PIPELINE_LINE>/stage4_10/<fashion_tag截断>/<模板名>/stage6_new_texture_generation/<中文风格>_1~N.png`
 
 ```bash
 python stage6_new_texture_generation/generate_seedream_images.py \
-  --template "body_24_overall_set" \
-  --user-requirement "2026年服装纹理趋势"
+  --fashion-tag "你的主题标签"
 ```
 
-也可显式传入阶段5 CSV：`--input-csv output/stage4_10/<模板>/<需求截断>/stage5_new_texture_prompt.csv`。
+也可显式传入阶段5 CSV：`--input-csv <路径>/stage5_new_texture_prompt.csv`；或 **`--template`** + **`--fashion-tag`** 只跑一套。
 
 ### Stage7 人工筛图（手工）
 
-从对应 `output/stage4_10/<模板>/<需求截断>/stage6_new_texture_generation/` 中：先对 **20 组**（每组对应同一 `label_zh` 的 `_1`～`_4`）**每组保留 1 张**（共 **20** 张），再从中选出 **10 张** 放入**同一 run 目录**下的筛图文件夹（与阶段6 输出并列），供阶段8 贴图：
+从对应 `output/<PIPELINE_LINE>/stage4_10/<fashion_tag>/<模板>/stage6_new_texture_generation/` 中筛图；选中 PNG 放入同 run 下：
 
-`output/stage4_10/<模板>/<需求截断>/stage7_new_texture_generation_selected/`
+`output/<PIPELINE_LINE>/stage4_10/<fashion_tag>/<模板>/stage7_new_texture_generation_selected/`
 
 ### Stage8 混元 3D 贴图模型生成
 
 产物目录（与阶段6、7 同一 run）：
 
-`output/stage4_10/<模板名>/<需求截断>/stage8_new_texture_model_generation/`
+`output/<PIPELINE_LINE>/stage4_10/<fashion_tag>/<模板>/stage8_new_texture_model_generation/`
 
 **默认推荐**：在混元 3D **网页控制台**用积分完成纹理生成，再把 **`.glb`** 放进上述目录（见下方「方式 A」）。**仅当网页积分不够**、或仍需批量补跑时，再使用「方式 B」脚本走 **腾讯云 API**（按云侧计费，与网页积分无关）。两种方式可混用（部分风格网页、部分 API）。后续封面与正片渲染**只**依赖该目录下的 **`*.glb`**，**不依赖** `_result.png` 等贴图预览文件。
 
@@ -234,15 +258,14 @@ python stage6_new_texture_generation/generate_seedream_images.py \
 
 #### 方式 B（备选）：脚本调用混元 3D **API**（网页积分不足时）
 
-**必须**传入与阶段4～6 **完全相同**的 **`--template`** 与 **`--user-requirement`**。从 **`…/stage7_new_texture_generation_selected/`** 递归读取 `*.png` 提交贴图任务；筛图目录可用 **`--selected-dir`** 覆盖。
+**必填 `--fashion-tag`**（与阶段4～6 路径一致）。若省略 **`--template`**，则按主题根 **`pipeline_render_prefs.yml`** 的 **`body_templates`** 逐套提交贴图。单套时可从 **`…/stage7_new_texture_generation_selected/`** 递归读取 `*.png`；筛图目录可用 **`--selected-dir`** 覆盖（**批量遍历 prefs 时不要使用 `--selected-dir`**，每套模板使用各自 run 下默认筛图目录）。
 
 - 输出：`…/stage8_new_texture_model_generation/<中文风格>.glb`（必选）
 - 若接口返回图 URL，脚本会额外写入：`…/<中文风格>_result.png`（或 `.jpg` / `.webp`）；**没有也不影响后续渲染**。
 
 ```bash
 python stage8_new_texture_model_generation/generate_textured_models.py \
-  --template "body_24_overall_set" \
-  --user-requirement "2026年服装纹理趋势"
+  --fashion-tag "你的主题标签"
 ```
 
 ### Stage9 仅候选封面图（`stage9_render_covers`）
@@ -250,33 +273,33 @@ python stage8_new_texture_model_generation/generate_textured_models.py \
 **脚本**：`stage11_render_videos/blender_render_videos.py`（`--pass covers`）  
 **工程**：`resource/blender/blender_render_videos.blend`
 
-输出 `output/stage4_10/<模板>/<需求截断>/stage9_render_covers/<模型名>_cover.png`（第 18 帧），**不**再生成 `cover.png`；每个 stage8 的 `*.glb` 一图。  
+输出 `output/<PIPELINE_LINE>/stage4_10/<fashion_tag截断>/<模板名>/stage9_render_covers/<模型名>_cover.png`（第 18 帧），**不**再生成 `cover.png`；每个 stage8 的 `*.glb` 一图。  
 仅 **`pipeline_render_prefs.yml` / CLI** 中的 **`head_object` 与 `hair_object`** 参与渲染；其余 **`female|male_<数字>_head` / `_hair`** 一律不参与（`hide_render`）。每次导入的 GLB **顶层根**与 **`body`** 均设为 **`scale = 0.1`**。  
 同一次批量建议固定 **Studio 背景墙**与环境一致：脚本中材质 `Studio_Fabric_1.001` 的 **Tint** 色默认使用预设表 **首色**；可用 **`--studio-tint-hex '#8E9775'`** 指定（完整预设见下）；需要旧版「每套随机一色」时用 **`--random-studio-tint`**。
 
 预设 **Tint（HEX）**（与 `resource/blender/studio_color/<HEX>.png` 对应，文件名无 `#`；均为适合布料/影棚背景的**低饱和**色，共 26 项）：`#E3D9C6`、`#8E9775`、`#5F7A76`、`#B0C4DE`、`#D7C4BB`、`#F5F5DC`、`#E6E6FA`、`#D0C8FF`、`#B7AD99`、`#DEE4E7`、`#D1E9F0`、`#F4E0E0`、`#C9B8A4`、`#A8ADA4`、`#B8A89A`、`#D4C4B0`、`#9EB6B8`、`#C8D4D8`、`#DAD4C8`、`#A39E93`、`#8F9B8A`、`#C6BCB3`、`#E8E4DC`、`#B9C4C9`、`#A89B8C`、`#CCD5DB`
 
-**推荐**与阶段4～8 相同地传入 **`--template`** 与 **`--user-requirement`**。Stage9/11 **启动时**即同步 **`pipeline_render_prefs.yml`**：有则读入缺省项；命令行写了 Tint/头/发则**覆盖并写回**；皆无则用随机 Tint 与默认头/发并**立即创建/更新**文件，因此**不必**等整次渲染结束才有 YAML，也**不必**在无 YAML 时强制手写头/发（仅 `--template`+`--user-requirement` 即可）。未同时给这两项时仍须在命令行指定头/发（旧扫描模式不写 YAML）。`--only-glb-stem` / **`--only-glb-stems`**、**`--render-output-dir`**、**`--resume`** 行为不变。
+**推荐**传入 **`--fashion-tag`**（与阶段4 目录一致）；可加 **`--template`** 只渲该服装模板子目录。主题根目录 **`pipeline_render_prefs.yml`** 在 Stage9/11 **启动时**同步：有则读入缺省项；命令行写了 Tint/头/发则**覆盖并写回**；皆无则用随机 Tint 与默认头/发并**立即创建/更新**。仅 **`--fashion-tag`** 时可省略头/发 CLI（由 YAML 补齐）。未指定 **`--fashion-tag`** 的旧「整树扫描」模式仍须在命令行指定 **`--head-object`** 与 **`--hair-object`**。`--only-glb-stem` / **`--only-glb-stems`**、**`--render-output-dir`**、**`--resume`** 行为不变。
 
 ```bash
 blender -b --python-use-system-env resource/blender/blender_render_videos.blend \
   -P stage11_render_videos/blender_render_videos.py -- \
   --pass covers \
   --studio-tint-hex "#E3D9C6" \
+  --fashion-tag "你的主题标签" \
   --template "body_24_overall_set" \
-  --user-requirement "从80/90后的流行儿童动漫中提取相应主题的服装颜色纹理logo" \
   --head-object female_03_head \
   --hair-object female_03_hair
 ```
 
-若已存在 **`pipeline_render_prefs.yml`**，可简化为（示例，Tint 与头/发由 YAML 提供）：
+若已存在 **`pipeline_render_prefs.yml`**（与 **`--fashion-tag`** 对应主题根目录），可省略 Tint/头/发：
 
 ```bash
 blender -b --python-use-system-env resource/blender/blender_render_videos.blend \
   -P stage11_render_videos/blender_render_videos.py -- \
   --pass covers \
-  --template "body_24_overall_set" \
-  --user-requirement "从80/90后的流行儿童动漫中提取相应主题的服装颜色纹理logo"
+  --fashion-tag "你的主题标签" \
+  --template "body_24_overall_set"
 ```
 
 多进程时子进程用 **`STAGE11_JSON`（与兼容的 `STAGE9_JSON`）** 收参，父进程会写入全量配置；勿依赖 `--` 后的参数在子进程里自动生效。
@@ -286,8 +309,8 @@ BLENDER_WORKERS=4 blender -b --python-use-system-env resource/blender/blender_re
   -P stage11_render_videos/blender_render_videos.py -- \
   --pass covers \
   --workers 4 \
+  --fashion-tag "你的主题标签" \
   --template "body_24_overall_set" \
-  --user-requirement "从80/90后的流行儿童动漫中提取相应主题的服装颜色纹理logo" \
   --head-object female_00_head \
   --hair-object female_00_hair
 ```
@@ -296,13 +319,13 @@ BLENDER_WORKERS=4 blender -b --python-use-system-env resource/blender/blender_re
 
 从同 run 的 **`stage9_render_covers/`** 里挑选 **6** 张 **`<模型名>_cover.png`** 复制到（正片目标 **5** 套，多 **1** 套备损；与 **`--workers 4`** 等多进程无强制对齐要求）：
 
-`output/stage4_10/<模板>/<需求截断>/stage10_render_covers_selected/`
+`output/<PIPELINE_LINE>/stage4_10/<fashion_tag截断>/<模板名>/stage10_render_covers_selected/`
 
 文件名须保持 `<模型名>_cover.png` 以与 `stage8` 的 GLB 主名一致。无需复制未选中的模型。
 
 ### Stage11 5 秒环绕正片（`stage11_render_videos`）
 
-**脚本路径同上**，**`--pass videos`**。默认只渲染在 **`stage10_render_covers_selected/*_cover.png`** 中出现过的、且在 `stage8` 有对应 **`.glb`** 的模型，输出 `stage11_render_videos/<模型名>.mp4`；**不**在 stage11 里再写一遍封面 PNG（以省磁盘与时间）。加 **`--all-glbs`** 时改为对该 run 下**全部** stage8 GLB 出片（不筛）。与 Stage9 相同，**`--template`+`--user-requirement`** 时启动即同步 **`pipeline_render_prefs.yml`**，可省略 **`--studio-tint-hex` / `--head-object` / `--hair-object`**（由文件或默认/随机补齐并落盘）；头/发可见性与 GLB **0.1 缩放**规则亦与 Stage9 一致。**`--only-glb-stems '名称1,名称2'`** 在上述任务集之上再收窄到指定 **GLB 主名**（与 stage8 文件名一致）；可与 **`--workers`** 并发共用（参数写入 **`STAGE11_JSON`**）。**正片**建议与 Stage9 使用**同一** Studio Tint（及同一 HDRI/场景），使封面与成片的背景墙一致。`--resume` 时跳过已有效的 `*.mp4`。
+**脚本路径同上**，**`--pass videos`**。默认只渲染在 **`stage10_render_covers_selected/*_cover.png`** 中出现过的、且在 `stage8` 有对应 **`.glb`** 的模型，输出 `stage11_render_videos/<模型名>.mp4`；**不**在 stage11 里再写一遍封面 PNG（以省磁盘与时间）。加 **`--all-glbs`** 时改为对该 run 下**全部** stage8 GLB 出片（不筛）。与 Stage9 相同，传入 **`--fashion-tag`**（可选 **`--template`**）时启动即同步主题根目录 **`pipeline_render_prefs.yml`**，可省略 **`--studio-tint-hex` / `--head-object` / `--hair-object`**（由文件或默认/随机补齐并落盘）；头/发可见性与 GLB **0.1 缩放**规则亦与 Stage9 一致。**`--only-glb-stems '名称1,名称2'`** 在上述任务集之上再收窄到指定 **GLB 主名**（与 stage8 文件名一致）；可与 **`--workers`** 并发共用（参数写入 **`STAGE11_JSON`**）。**正片**建议与 Stage9 使用**同一** Studio Tint（及同一 HDRI/场景），使封面与成片的背景墙一致。`--resume` 时跳过已有效的 `*.mp4`。
 
 **临时**：**`--render-output-dir <目录>`** 时，本批 **`*.mp4`** / **`*_cover.png`** 全部写入该目录（自动创建）；**默认不传**，仍写入各 run 下 **`stage11_render_videos`** / **`stage9_render_covers`**。与多进程兼容。
 
@@ -313,8 +336,8 @@ blender -b --python-use-system-env resource/blender/blender_render_videos.blend 
   -P stage11_render_videos/blender_render_videos.py -- \
   --pass videos \
   --studio-tint-hex "#E3D9C6" \
+  --fashion-tag "你的主题标签" \
   --template "body_24_overall_set" \
-  --user-requirement "从80/90后的流行儿童动漫中提取相应主题的服装颜色纹理logo" \
   --head-object female_03_head \
   --hair-object female_03_hair
 ```
@@ -327,8 +350,8 @@ BLENDER_WORKERS=4 blender -b --python-use-system-env resource/blender/blender_re
   --pass videos \
   --workers 4 \
   --studio-tint-hex "#E3D9C6" \
+  --fashion-tag "你的主题标签" \
   --template "body_24_overall_set" \
-  --user-requirement "从80/90后的流行儿童动漫中提取相应主题的服装颜色纹理logo" \
   --head-object female_03_head \
   --hair-object female_03_hair
 ```
@@ -342,23 +365,23 @@ BLENDER_WORKERS=4 blender -b --python-use-system-env resource/blender/blender_re
   --workers 4 \
   --only-glb-stems "蜡笔小新,邋遢大王" \
   --studio-tint-hex "#E3D9C6" \
+  --fashion-tag "你的主题标签" \
   --template "body_24_overall_set" \
-  --user-requirement "从80/90后的流行儿童动漫中提取相应主题的服装颜色纹理logo" \
   --head-object female_03_head \
   --hair-object female_03_hair
 ```
 
 ### Stage12 白模（透明背景）视频
 
-输出：`output/stage4_10/<模板名>/<需求截断>/stage12_render_white_mesh_videos/white_model.mov`（**QuickTime 容器 + FFmpeg `codec = PNG`**，**`color_mode = RGBA`**，透明背景）。**编码器须为 PNG** 时，在 Blender 中需 **`ffmpeg.format = QUICKTIME`**；**MPEG4 + PNG** 不是可用组合，无法用 `.mp4` 同时满足「PNG 编码 + 透明成片」。
+输出：`output/<PIPELINE_LINE>/stage4_10/<fashion_tag截断>/<模板名>/stage12_render_white_mesh_videos/white_model.mov`（**QuickTime 容器 + FFmpeg `codec = PNG`**，**`color_mode = RGBA`**，透明背景）。**编码器须为 PNG** 时，在 Blender 中需 **`ffmpeg.format = QUICKTIME`**；**MPEG4 + PNG** 不是可用组合，无法用 `.mp4` 同时满足「PNG 编码 + 透明成片」。
 
 使用工程 `resource/blender/render_around_white_mesh.blend`：导入 Stage8 的 `*.glb`，`body` 缩放到 `0.1`，材质全换为白 **Diffuse**（`Roughness=1.0`），渲 **1–180** 帧。脚本对 **`bpy.data.scenes["Scene"]`** 设置 **`film_transparent`**、**`image_settings.color_mode = RGBA`**、**`ffmpeg.format = QUICKTIME`**、**`ffmpeg.codec = PNG`**。
 
 ```bash
 blender -b --python-use-system-env resource/blender/render_around_white_mesh.blend \
   -P stage12_render_white_mesh_videos/blender_render_white_mesh_videos.py -- \
-  --template "body_24_overall_set" \
-  --user-requirement "从80/90后的流行儿童动漫中提取相应主题的服装颜色纹理logo"
+  --fashion-tag "你的主题标签" \
+  --template "body_24_overall_set"
 ```
 
 默认在多个 GLB 时只取**首个**出单一 `white_model.mov`；需指定来源时加 `--only-glb-stem`。

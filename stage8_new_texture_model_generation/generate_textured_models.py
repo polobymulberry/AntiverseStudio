@@ -24,6 +24,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+from common.pipeline_render_prefs import list_body_template_names_for_fashion_tag
 from common.settings import SETTINGS
 from common.tencent_hunyuan_client import (
     describe_texture_job,
@@ -34,9 +35,9 @@ from common.tencent_hunyuan_client import (
     texture_job_status,
 )
 from common.utils import (
+    body_template_run_dir,
     ensure_dir,
     file_to_base64,
-    output_template_user_dir,
     read_csv,
 )
 
@@ -113,90 +114,51 @@ def _image_suffix_from_url(url: str) -> str:
     return ".png"
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description=(
-            "【备选】网页积分不足时：用腾讯云混元 3D 贴图 API 批处理 stage7 筛图，"
-            "写出 GLB 到 output/stage4_10/<模板>/<需求截断>/stage8_new_texture_model_generation/。"
-            "默认流程请在网页完成贴图后手放 GLB，无需运行本脚本；后续渲染只扫描 *.glb。"
-        ),
-    )
-    parser.add_argument(
-        "--template",
-        required=True,
-        metavar="NAME",
-        help="与阶段4～6 所用模板名一致",
-    )
-    parser.add_argument(
-        "--user-requirement",
-        default=None,
-        help="与阶段4～6 所用需求全文一致；与 --fashion-tag 二选一或同传（同传时目录以 tag 为准）。",
-    )
-    parser.add_argument(
-        "--fashion-tag",
-        default=None,
-        metavar="TAG",
-        help="与阶段4 一致；仅定位 run 目录，不参与贴图侧描述文本。",
-    )
-    parser.add_argument(
-        "--selected-dir",
-        default=None,
-        help=(
-            "第七步人工筛选 PNG 目录（递归 *.png）；省略则为 "
-            "output/stage4_10/<template>/<需求截断>/stage7_new_texture_generation_selected/。"
-            "目录内图片均按本 run（由 --template 与 --user-requirement 或 --fashion-tag 指定）处理。"
-        ),
-    )
-    parser.add_argument(
-        "--stage3-csv",
-        default=str(SETTINGS.output_root / "stage3_body_template_decimate.csv"),
-    )
-    args = parser.parse_args()
-
-    req = (args.user_requirement or "").strip()
-    ft = (args.fashion_tag or "").strip()
-    if not req and not ft:
-        parser.error("须指定 --user-requirement 或 --fashion-tag（与阶段4～6 定位该 run 一致）。")
-
-    print(
-        "[Stage8] 当前为「API 批处理」模式（云 API 计费）。"
-        "默认流程为网页积分贴图后手放 .glb；仅当网页积分不够或需补跑时再使用本命令。",
-        flush=True,
-    )
-
-    model_url_map = {row["template_name"]: row["public_url"] for row in read_csv(Path(args.stage3_csv))}
-    template_name = args.template.strip()
-    run_dir = output_template_user_dir(
-        SETTINGS.output_root,
-        template_name,
-        req,
-        fashion_tag=ft or None,
+def _run_stage8_for_template(
+    ft: str,
+    template_name: str,
+    *,
+    pipeline_line: str | None,
+    selected_dir_override: Path | None,
+    model_url_map: dict[str, str],
+    abort_on_error: bool,
+) -> None:
+    run_dir = body_template_run_dir(
+        SETTINGS.output_root, ft, template_name, pipeline_line=pipeline_line
     )
     default_selected = run_dir / "stage7_new_texture_generation_selected"
     selected_dir = (
-        Path(args.selected_dir).resolve()
-        if args.selected_dir
+        selected_dir_override.resolve()
+        if selected_dir_override is not None
         else default_selected.resolve()
     )
     if not selected_dir.is_dir():
-        print(f"[ERROR] 筛图目录不存在: {selected_dir}", file=sys.stderr)
-        sys.exit(1)
+        msg = f"筛图目录不存在: {selected_dir}"
+        if abort_on_error:
+            print(f"[ERROR] {msg}", file=sys.stderr)
+            sys.exit(1)
+        print(f"[SKIP] {template_name} — {msg}", file=sys.stderr)
+        return
 
     png_paths = sorted(p.resolve() for p in selected_dir.rglob("*.png"))
     total = len(png_paths)
     print(f"[RUN] run_dir={run_dir}", flush=True)
     print(f"[RUN] selected_dir={selected_dir}", flush=True)
-    print(f"[RUN] 共 {total} 张 PNG 待提交混元贴图", flush=True)
+    print(f"[RUN] {template_name} 共 {total} 张 PNG 待提交混元贴图", flush=True)
 
     model_url = model_url_map.get(template_name)
     if not model_url:
-        print(f"[ERROR] stage3 CSV 中无模板「{template_name}」的 public_url", file=sys.stderr)
-        sys.exit(1)
+        msg = f"stage3 CSV 中无模板「{template_name}」的 public_url"
+        if abort_on_error:
+            print(f"[ERROR] {msg}", file=sys.stderr)
+            sys.exit(1)
+        print(f"[SKIP] {msg}", file=sys.stderr)
+        return
 
     for idx, image_path in enumerate(png_paths, start=1):
         label_zh = image_path.stem.rsplit("_", 1)[0]
         print(
-            f"[Stage8] ({idx}/{total}) {image_path.name}（label={label_zh}）提交混元贴图 …",
+            f"[Stage8] ({idx}/{total}) {template_name} {image_path.name}（label={label_zh}）提交混元贴图 …",
             flush=True,
         )
         submit_resp = submit_texture_job(model_url, file_to_base64(image_path))
@@ -229,7 +191,104 @@ def main() -> None:
         else:
             print(f"[OK] ({idx}/{total}) {template_name}/{label_zh} -> {dst}（无 IMAGE/TEXTURE_IMAGE）", flush=True)
 
-    print(f"[DONE] 已处理 {total} 张筛图。", flush=True)
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description=(
+            "【备选】网页积分不足时：用腾讯云混元 3D 贴图 API 批处理 stage7 筛图，"
+            "写出 GLB 到 output/stage4_10/<fashion-tag>/<模板>/stage8_new_texture_model_generation/。"
+            "默认流程请在网页完成贴图后手放 GLB，无需运行本脚本；后续渲染只扫描 *.glb。"
+        ),
+    )
+    parser.add_argument(
+        "--template",
+        default=None,
+        metavar="NAME",
+        help=(
+            "单套模板名，与阶段4～6 一致。若省略则按主题 pipeline_render_prefs.yml 的 "
+            "body_templates 顺序逐套处理。"
+        ),
+    )
+    parser.add_argument(
+        "--fashion-tag",
+        required=True,
+        metavar="TAG",
+        help="与阶段4 一致；定位 output/<产品线>/stage4_10/<标签>/<模板>/。",
+    )
+    parser.add_argument(
+        "--pipeline-line",
+        default=None,
+        metavar="LINE",
+        help=(
+            "output 下产品线目录名，与阶段4～7 的 ``--pipeline-line`` 一致；"
+            "缺省读环境变量 ``PIPELINE_LINE``。"
+        ),
+    )
+    parser.add_argument(
+        "--selected-dir",
+        default=None,
+        help=(
+            "第七步人工筛选 PNG 目录（递归 *.png）；省略则为各模板 run 下 "
+            "stage7_new_texture_generation_selected/。"
+            "仅在与 --template 联用时有效；批量遍历 prefs 时每套模板使用各自默认目录。"
+        ),
+    )
+    parser.add_argument(
+        "--stage3-csv",
+        default=str(SETTINGS.output_root / "stage3_body_template_decimate.csv"),
+    )
+    args = parser.parse_args()
+
+    ft = (args.fashion_tag or "").strip()
+    if not ft:
+        parser.error("须指定 --fashion-tag。")
+
+    pl = (args.pipeline_line or "").strip() or None
+
+    tpl = (args.template or "").strip()
+    if args.selected_dir and not tpl:
+        parser.error(
+            "批量模式（省略 --template）下不能使用 --selected-dir；"
+            "请对每套模板使用其 run 下 stage7_new_texture_generation_selected/，或指定 --template 单套处理。"
+        )
+
+    print(
+        "[Stage8] 当前为「API 批处理」模式（云 API 计费）。"
+        "默认流程为网页积分贴图后手放 .glb；仅当网页积分不够或需补跑时再使用本命令。",
+        flush=True,
+    )
+
+    stage3_path = Path(args.stage3_csv)
+    model_url_map = {row["template_name"]: row["public_url"] for row in read_csv(stage3_path)}
+
+    if tpl:
+        templates = [tpl]
+    else:
+        try:
+            templates = list_body_template_names_for_fashion_tag(
+                SETTINGS.output_root, ft, pipeline_line=pl
+            )
+        except (FileNotFoundError, ValueError) as e:
+            print(f"[ERROR] {e}", file=sys.stderr)
+            sys.exit(1)
+
+    sel_override = Path(args.selected_dir).resolve() if args.selected_dir else None
+    print(f"[RUN] Stage8 将处理 {len(templates)} 套模板: {', '.join(templates)}", flush=True)
+
+    single_run = len(templates) == 1
+    for ti, template_name in enumerate(templates, start=1):
+        if len(templates) > 1:
+            print(f"[RUN] --- ({ti}/{len(templates)}) {template_name} ---", flush=True)
+        _run_stage8_for_template(
+            ft,
+            template_name,
+            pipeline_line=pl,
+            selected_dir_override=sel_override,
+            model_url_map=model_url_map,
+            abort_on_error=single_run,
+        )
+
+    print("[DONE] Stage8 批量结束。", flush=True)
 
 
 if __name__ == "__main__":

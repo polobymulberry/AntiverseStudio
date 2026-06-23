@@ -17,7 +17,7 @@ _REPO = Path(__file__).resolve().parents[1]
 if str(_REPO) not in sys.path:
     sys.path.insert(0, str(_REPO))
 
-from common.hair_assets import HAIR_COLORS, hair_color_swatches_dir, hex_to_rgb01
+from common.hair_assets import HAIR_COLORS, hair_color_swatches_dir, hex_to_srgb01
 
 
 def _png_chunk(tag: bytes, data: bytes) -> bytes:
@@ -42,7 +42,7 @@ def write_png_rgb(path: Path, r: int, g: int, b: int, w: int = 256, h: int = 256
 def main() -> None:
     out_dir = hair_color_swatches_dir(_REPO)
     for name, hex_s in sorted(HAIR_COLORS.items()):
-        r01, g01, b01 = hex_to_rgb01(hex_s)
+        r01, g01, b01 = hex_to_srgb01(hex_s)
         r, g, b = int(r01 * 255), int(g01 * 255), int(b01 * 255)
         path = out_dir / f"{name}.png"
         write_png_rgb(path, r, g, b)

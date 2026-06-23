@@ -30,7 +30,17 @@ class PipelineSettings:
             "/mnt/jfs_tikv/panjianxiong/drdoll/data/solid_full_body",
         )
     )
+    # real_head_120k：head_object 为纯数字 template_id 时从该根目录下解析 head.obj
+    real_head_120k_root: Path = Path(
+        os.getenv(
+            "REAL_HEAD_120K_ROOT",
+            "/mnt/jfs_tikv/drdoll/runtime_data/image2human/templates_3hb/real_head_120k",
+        )
+    )
     output_root: Path = Path(os.getenv("OUTPUT_ROOT", "output"))
+
+    #: 位于 ``OUTPUT_ROOT`` 下的产品线目录名；默认「手办服装IP」。新作「卡通人偶定制」流水线请设置环境变量 ``PIPELINE_LINE``。
+    pipeline_line: str = os.getenv("PIPELINE_LINE", "手办服装IP")
 
     # Qwen / DashScope (OpenAI-compatible endpoint)
     dashscope_api_key: str = os.getenv("DASHSCOPE_API_KEY", "")
@@ -63,6 +73,11 @@ class PipelineSettings:
     # Tencent Hunyuan 3D
     tencent_region: str = os.getenv("TENCENT_REGION", "ap-guangzhou")
     tencent_hunyuan_model: str = os.getenv("TENCENT_TEXTURE_MODEL", "3.1")
+
+    def pipeline_run_root(self) -> Path:
+        """阶段 4～12 流水线产物根：``OUTPUT_ROOT / PIPELINE_LINE``（其下有 ``stage4_10``、``stage4_10_finish``）。"""
+        line = (self.pipeline_line or "").strip() or "手办服装IP"
+        return Path(self.output_root) / line
 
 
 SETTINGS = PipelineSettings()

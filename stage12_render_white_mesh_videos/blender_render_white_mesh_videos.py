@@ -26,7 +26,7 @@ if str(_REPO_ROOT) not in sys.path:
 
 from common.blender_cycles_gpu import ensure_cycles_cuda
 from common.settings import SETTINGS
-from common.utils import output_template_user_dir
+from common.utils import PIPELINE_TEMPLATE_USER_SUBDIR, body_template_run_dir, fashion_tag_run_dir
 
 # 与 Stage11 封面帧一致，便于下游对齐时间线。
 WHITE_MESH_STILL_FRAME: int = 18
@@ -44,14 +44,13 @@ def parse_cli_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "渲染白模服装视频：扫描 Stage8 的 GLB，输出到同 run 的 "
-            "stage12_render_white_mesh_videos/。建议指定 --template 与 "
-            "--user-requirement 或 --fashion-tag 限定单一 run。"
+            "stage12_render_white_mesh_videos/。建议指定 --fashion-tag（可选 --template）限定 run。"
         )
     )
     parser.add_argument(
         "--input-root",
-        default=str(SETTINGS.output_root / "stage4_10"),
-        help="递归扫描 GLB 根目录；若指定 --template 与 --user-requirement 或 --fashion-tag，本参数被忽略",
+        default=str(SETTINGS.pipeline_run_root() / PIPELINE_TEMPLATE_USER_SUBDIR),
+        help="递归扫描 GLB 根目录；若指定 --fashion-tag（可选 --template），本参数被忽略",
     )
     parser.add_argument("--template", default=None, metavar="NAME")
     parser.add_argument(
@@ -87,19 +86,13 @@ def parse_cli_args() -> argparse.Namespace:
 
 def resolve_input_root(args: argparse.Namespace | SimpleNamespace) -> Path:
     template = (getattr(args, "template", None) or "").strip()
-    requirement = (getattr(args, "user_requirement", None) or "").strip()
     fashion_tag = (getattr(args, "fashion_tag", None) or "").strip()
-    if template and (requirement or fashion_tag):
-        return output_template_user_dir(
-            SETTINGS.output_root,
-            template,
-            requirement,
-            fashion_tag=fashion_tag or None,
-        ).resolve()
-    if template or requirement or fashion_tag:
-        raise SystemExit(
-            "[ERROR] --template 须与 --user-requirement 或 --fashion-tag 同时指定，或三者均省略。"
-        )
+    if fashion_tag and template:
+        return body_template_run_dir(SETTINGS.output_root, fashion_tag, template).resolve()
+    if fashion_tag:
+        return fashion_tag_run_dir(SETTINGS.output_root, fashion_tag).resolve()
+    if template:
+        raise SystemExit("[ERROR] 指定 --template 时必须同时指定 --fashion-tag，或二者均省略。")
     return Path(args.input_root).resolve()
 
 
