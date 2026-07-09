@@ -88,8 +88,13 @@ stage9_render_covers/                    # 说明：同 README Stage9
 stage10_render_covers_selected/         # 手工从 Stage9 封面中挑选
 stage11_render_videos/                  # Blender 脚本与 Stage11 正片输出
 stage12_render_white_mesh_videos/
+pet_stage1_model_prompts/          # 宠物线：内置模特 prompt
+pet_stage2_model_images/           # 宠物线：本地 Qwen-Image 模特出图
+pet_stage3_relief_render/          # 宠物线：浮雕拉模 + Blender 360
+pet_stage4_head_template/          # 宠物线：头套模板（预留）
 output/
 resource/blender/   # 含 blender_render_videos.blend、render_around_white_mesh.blend、body_template_preview.blend、castel_st_angelo_roof_4k.exr
+resource/pet_model_reference/   # 宠物内置高清模特归档（Stage2 精选后手工放入）
 ```
 
 ## 3. 关键配置
@@ -97,7 +102,7 @@ resource/blender/   # 含 blender_render_videos.blend、render_around_white_mesh
 所有配置集中在 `.env` + `common/settings.py`：
 
 - 模板根目录：`BODY_TEMPLATE_ROOT`（默认 `/mnt/jfs_tikv/panjianxiong/drdoll/data/solid_full_body`）
-- 流水线产品线子目录：`PIPELINE_LINE`（默认 **手办服装IP**，产物在 `output/手办服装IP/stage4_10/…`；新作 **卡通人偶定制** 请设 `PIPELINE_LINE=卡通人偶定制`）
+- 流水线产品线子目录：`PIPELINE_LINE`（默认 **手办服装IP**；**卡通人偶定制**、**宠物定制** 等见 `common/pipeline_lines.py`）
 - Qwen：`DASHSCOPE_API_KEY` / `DASHSCOPE_MODEL=qwen3.6-plus`
 - Seedream：`SEEDREAM_API_KEY` / `SEEDREAM_MODEL=doubao-seedream-5-0-260128`
 - OSS：`OSS_*`
@@ -115,6 +120,36 @@ resource/blender/   # 含 blender_render_videos.blend、render_around_white_mesh
 - **合成白模视频**：`stage12b_body_head_hair_render_white_mesh_videos/blender_render_composite_white_mesh.py`（工程 `render_around_white_mesh.blend`）。
 
 详见 [`docs/stage_data_contract.md`](docs/stage_data_contract.md) 中 Stage3b、Stage4b～8b、Stage12b。
+
+### 宠物定制（可选产品线）
+
+设置 **`PIPELINE_LINE=宠物定制`**（与人偶/手办线**并存**，产物在 `output/宠物定制/`）。宠物线与人偶 `stage4_10` 服装纹理树**解耦**，共享 `common/` 中的 LLM、Blender GPU、渲染池等基础设施。
+
+| 模块 | 目录 | 说明 |
+|------|------|------|
+| 内置模特 Prompt | `pet_stage1_model_prompts/` | 生成 10 品种 CSV，确认后再出图 |
+| 内置模特出图 | `pet_stage2_model_images/` | 本地 Qwen-Image-2512 摄影棚头部特写 |
+| 浮雕拉模 + 360 渲染 | `pet_stage3_relief_render/` | 按订单号拉 GLB，Blender 旋转视频 |
+| 头套模板（预留） | `pet_stage4_head_template/` | 尚未实现 |
+
+典型命令：
+
+```bash
+# Stage1：生成 prompt CSV（默认 10 品种）
+python pet_stage1_model_prompts/generate_pet_model_prompts.py --run-subdir 20260623_v1
+
+# Stage2：审阅 CSV 后在 GPU 环境本地出图（见 pet_stage2_model_images/README.md）
+python pet_stage2_model_images/generate_pet_model_images.py --run-subdir 20260623_v1
+
+# Stage3a：网站生成浮雕后，按订单号拉模（或 --local-model-dir 开发降级）
+python pet_stage3_relief_render/fetch_relief_model.py --order-id YOUR_ORDER_ID
+
+# Stage3b：Blender 360° 视频（.blend 提供前可先拉模落盘）
+blender -b --python-use-system-env resource/blender/pet_relief_360.blend \
+  -P pet_stage3_relief_render/blender_render_relief_360.py -- --order-id YOUR_ORDER_ID
+```
+
+产品线常量与路径 helper：`common/pipeline_lines.py`、`common/pet_pipeline_paths.py`。详见各 `pet_stage*/README.md` 与 [`docs/stage_data_contract.md`](docs/stage_data_contract.md) 宠物章节。
 
 ## 4. 各阶段运行
 

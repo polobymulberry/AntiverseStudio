@@ -39,8 +39,35 @@ class PipelineSettings:
     )
     output_root: Path = Path(os.getenv("OUTPUT_ROOT", "output"))
 
-    #: 位于 ``OUTPUT_ROOT`` 下的产品线目录名；默认「手办服装IP」。新作「卡通人偶定制」流水线请设置环境变量 ``PIPELINE_LINE``。
+    #: 位于 ``OUTPUT_ROOT`` 下的产品线目录名；默认「手办服装IP」。人偶线 ``卡通人偶定制``、宠物线 ``宠物定制`` 见 ``common.pipeline_lines``。
     pipeline_line: str = os.getenv("PIPELINE_LINE", "手办服装IP")
+
+    # 宠物定制网站 API（拉取浮雕模型；endpoint 契约随外部仓库演进）
+    pet_customization_api_base_url: str = os.getenv("PET_CUSTOMIZATION_API_BASE_URL", "")
+    pet_customization_api_key: str = os.getenv("PET_CUSTOMIZATION_API_KEY", "")
+    pet_customization_order_path: str = os.getenv(
+        "PET_CUSTOMIZATION_ORDER_PATH", "api/v1/orders/{order_id}/model"
+    )
+    pet_customization_api_timeout: int = int(os.getenv("PET_CUSTOMIZATION_API_TIMEOUT", "60"))
+    pet_customization_download_timeout: int = int(
+        os.getenv("PET_CUSTOMIZATION_DOWNLOAD_TIMEOUT", "300")
+    )
+    pet_customization_max_retries: int = int(os.getenv("PET_CUSTOMIZATION_MAX_RETRIES", "3"))
+
+    # 宠物浮雕 Blender 360 渲染工程（尚未提供时可留空，脚本会报错并提示）
+    pet_relief_blend_file: Path = Path(
+        os.getenv(
+            "PET_RELIEF_BLEND_FILE",
+            str(_REPO_ROOT / "resource" / "blender" / "pet_relief_360.blend"),
+        )
+    )
+    # 内置宠物高清模特图归档根（Stage2 出图后可手工挑选复制到此）
+    pet_model_reference_root: Path = Path(
+        os.getenv(
+            "PET_MODEL_REFERENCE_ROOT",
+            str(_REPO_ROOT / "resource" / "pet_model_reference"),
+        )
+    )
 
     # Qwen / DashScope (OpenAI-compatible endpoint)
     dashscope_api_key: str = os.getenv("DASHSCOPE_API_KEY", "")
@@ -52,7 +79,27 @@ class PipelineSettings:
     enable_thinking: bool = os.getenv("QWEN_ENABLE_THINKING", "true").lower() == "true"
     thinking_budget: int = int(os.getenv("QWEN_THINKING_BUDGET", "4000"))
 
-    # Doubao Seedream
+    # Qwen-Image-2512 本地 diffusers 推理（Pet Stage2 等；参考 drdoll ``tool/qwen_image_local``）
+    qwen_image_model_path: Path = Path(
+        os.getenv(
+            "QWEN_IMAGE_MODEL_PATH",
+            "/mnt/jfs_tikv/panjianxiong/gpustack_data/cache/model_scope/Qwen/Qwen-Image-2512",
+        )
+    )
+    qwen_image_width: int = int(os.getenv("QWEN_IMAGE_WIDTH", "1024"))
+    qwen_image_height: int = int(os.getenv("QWEN_IMAGE_HEIGHT", "1024"))
+    qwen_image_true_cfg_scale: float = float(os.getenv("QWEN_IMAGE_TRUE_CFG_SCALE", "4.0"))
+    qwen_image_num_inference_steps: int = int(os.getenv("QWEN_IMAGE_NUM_INFERENCE_STEPS", "28"))
+    qwen_image_base_seed: int = int(os.getenv("QWEN_IMAGE_BASE_SEED", "1472666871"))
+    qwen_image_negative_prompt: str = os.getenv(
+        "QWEN_IMAGE_NEGATIVE_PROMPT",
+        "模糊，低质量，变形，水印，文字，丑陋，多余肢体，畸变，"
+        "面部暗斑，雀斑，闪电纹，半脸分界，异瞳，全身照，"
+        "客厅，卧室，户外，家居家具，绿植，街景，抠图感，过度曝光",
+    )
+    num_gpus_to_use: int = int(os.getenv("NUM_GPUS_TO_USE", "8"))
+    gpus_per_instance: int = int(os.getenv("GPUS_PER_INSTANCE", "2"))
+
     seedream_api_key: str = os.getenv("SEEDREAM_API_KEY", "")
     seedream_base_url: str = os.getenv("SEEDREAM_BASE_URL", "https://ark.cn-beijing.volces.com")
     seedream_model: str = os.getenv("SEEDREAM_MODEL", "doubao-seedream-5-0-260128")

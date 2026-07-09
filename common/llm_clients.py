@@ -51,11 +51,15 @@ def qwen_chat(
 def seedream_generate(
     *,
     prompt: str,
-    image_url: str,
+    image_url: str | None = None,
     n: int = 4,
     size: str = "2048x2048",
     response_format: str = "url",
 ) -> dict[str, Any]:
+    """调用 Seedream 图像生成 API。
+
+    ``image_url`` 为空时为纯文生图（宠物模特库等场景）；否则为参考图引导生成。
+    """
     if not SETTINGS.seedream_api_key:
         raise RuntimeError("缺少 SEEDREAM_API_KEY。")
     url = f"{SETTINGS.seedream_base_url.rstrip('/')}{SETTINGS.seedream_endpoint}"
@@ -63,14 +67,15 @@ def seedream_generate(
         "Authorization": f"Bearer {SETTINGS.seedream_api_key}",
         "Content-Type": "application/json",
     }
-    payload = {
+    payload: dict[str, Any] = {
         "model": SETTINGS.seedream_model,
         "prompt": prompt,
-        "image": image_url,
         "n": n,
         "size": size,
         "response_format": response_format,
     }
+    if image_url:
+        payload["image"] = image_url
     resp = requests.post(url, headers=headers, data=json.dumps(payload), timeout=180)
     if resp.status_code >= 400:
         raise RuntimeError(f"Seedream 请求失败: {resp.status_code} {resp.text}")

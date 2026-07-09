@@ -138,3 +138,42 @@
 ## 目录约定（历史布局）
 
 当前约定：`output/<PIPELINE_LINE>/stage4_10/<truncate(fashion_tag)>/<body_template>/`。旧式 `stage4_10/<template>/<segment>/` 或 **`output/stage4_10`** 顶层落盘已废弃；若仍有遗留树，请按当前层级手工整理（本仓库不再附带一次性迁移脚本）。
+
+---
+
+## 产品线区分（人偶 / 手办 / 宠物）
+
+| 产品线 | `PIPELINE_LINE` | 主要 stage 前缀 | 说明 |
+|--------|-----------------|-----------------|------|
+| 手办服装 IP | `手办服装IP`（默认） | `stage1`～`stage12` | Stage4～12 run 在 `stage4_10/` 下 |
+| 卡通人偶定制 | `卡通人偶定制` | `stage1`～`stage12` + `stage3b` / `stage12b` | 与人办共享 stage 编号，YAML 含头/发 |
+| 宠物定制 | `宠物定制` | `pet_stage1`～`pet_stage4` | **不**走 `stage4_10` 服装纹理树 |
+
+常量与判断：`common/pipeline_lines.py`。宠物路径：`common/pet_pipeline_paths.py`。
+
+---
+
+## Pet Stage1 → Pet Stage2（内置高清模特库）
+
+- **不按** `PIPELINE_LINE` 分目录；全局资产批次在 `output/pet_model_library/<run-subdir>/`。
+- **Stage1 脚本**：`pet_stage1_model_prompts/generate_pet_model_prompts.py --run-subdir <NAME>`
+- **输出 CSV**：`…/pet_model_prompts.csv`
+- **字段**（UTF-8，稳定列顺序）：`species_id`, `label_zh`, `pet_name_en`, `pet_name_zh`, `prompt_base`, `subject_desc`, `full_prompt`, `output_filename`（`pet_name_en` 4～6 字母，`pet_name_zh` 2～4 汉字）
+- **Stage2 脚本**：`pet_stage2_model_images/generate_pet_model_images.py --run-subdir <NAME>`（**本地 Qwen-Image-2512** / diffusers；默认 `1024×1024`；env `QWEN_IMAGE_MODEL_PATH`；可选 `--multi-gpu`）
+- **输出 PNG**：`…/images/<species_id>.png`；**摄影棚 seamless 背景 + 头部大特写**，非居家/户外场景；精选后可复制到 `resource/pet_model_reference/`（env `PET_MODEL_REFERENCE_ROOT`）
+
+## Pet Stage3（订单浮雕拉模 + 360 渲染）
+
+- **Run 根**：`output/宠物定制/pet_relief/<order_id>/`（`PIPELINE_LINE=宠物定制`）
+- **Stage3a 拉模**：`pet_stage3_relief_render/fetch_relief_model.py --order-id <ID>`
+  - 远程：`PET_CUSTOMIZATION_API_BASE_URL` + `PET_CUSTOMIZATION_ORDER_PATH`（默认 `api/v1/orders/{order_id}/model`）
+  - 降级：`--local-model-dir` 拷贝 GLB/OBJ 等到 `…/model/`
+- **Stage3b 渲染**：`pet_stage3_relief_render/blender_render_relief_360.py --order-id <ID>`
+  - 工程：`PET_RELIEF_BLEND_FILE`（默认 `resource/blender/pet_relief_360.blend`，尚未提供）
+  - **输出**：`…/pet_relief_360/<order_id>_360.mp4`
+
+## Pet Stage4（预留 · 头套模板）
+
+- 目录占位：`pet_stage4_head_template/`；路径 helper `pet_head_template_run_dir()` 已预留。
+- 尚未定义 CSV / Blender 契约；实现后在本节补充。
+
